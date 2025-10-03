@@ -1,0 +1,115 @@
+<div id="map" style="width: 100vw; height: 100vh; background-color: white;"></div>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden; /* hides scrollbars */
+}
+#map {
+  width: 100vw;
+  height: 100vh;
+}
+</style>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const station_names = 'https://gist.githubusercontent.com/Mariosmsk/38fa37997f2b7bcb11cbcb29e4548a45/raw/json';
+
+    document.addEventListener("DOMContentLoaded", function () {
+        var map = L.map('map', {
+            crs: L.CRS.Simple,
+            minZoom: -0.6,
+            maxZoom: 0.6,
+            zoomControl: false,
+            attributionControl: false,
+            dragging: window.innerWidth > 768, // Disable dragging on mobile
+            tap: false
+        });
+		map._container.style.cursor = 'default'
+
+		var imgBounds = [[0, 0], [1000, 1500]];  // [Height, Width]
+        var imageUrl = 'https://www.dropbox.com/scl/fi/uo3dac9ojbfui6886tgl6/livetemperatures.png?rlkey=w43k4nuwfxxd4i9x4bo3pcpwd&raw=1';
+        L.imageOverlay(imageUrl, imgBounds).addTo(map);
+        map.fitBounds(imgBounds);
+
+	var temperatureData = [];
+
+	fetch(station_names)
+		.then(response => {
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
+			return response.json();
+		})
+		.then(data => {
+			temperatureData = data.stations.map(station => ({
+				lat: station.lat,
+				lng: station.lng,
+				content: station.name
+			}));
+
+			// Check if the map variable exists
+			if (typeof map !== "undefined") {
+				
+				temperatureData.forEach(data => {
+				var popup = L.popup({ closeButton: true })
+					.setLatLng([data.lat, data.lng])
+					.setContent('<div class="custom-popup">' + data.content + '</div>');
+
+				var clickableArea = L.circle([data.lat, data.lng], {
+					radius: 10,
+					opacity: 0,
+					fillOpacity: 0
+				}).addTo(map);
+				
+				clickableArea.on('mouseover', function () {
+					map._container.style.cursor = 'pointer';
+				});
+
+				clickableArea.on('mouseout', function () {
+					map._container.style.cursor = 'default';
+				});
+
+				clickableArea.on('click', function () {
+					popup.openOn(map);
+				});
+			});
+
+			window.addEventListener('resize', function () {
+				map.invalidateSize();
+			});
+			
+			} else {
+				console.error('Map object is not defined.');
+			}
+			
+		})
+		.catch(error => {
+			console.error('Error fetching the JSON data:', error);
+		});
+
+// Add this CSS to style the popup
+var style = document.createElement('style');
+style.innerHTML = `
+.custom-popup {
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+    padding: 5px; /* Adjusted padding */
+    font-weight: bold; /* Makes the text bold */
+    font-size: 10px; /* Ensures text is readable but not too large */
+    text-align: center; /* Centers the text */
+}
+.leaflet-popup-content {
+    margin: 6px !important; /* Remove any default margin */
+    padding: 8px !important; /* Reduce padding inside the content */
+}
+
+`;
+document.head.appendChild(style);
+
+});
+</script>
