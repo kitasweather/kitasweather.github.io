@@ -24,9 +24,14 @@ const station_names = 'https://gist.githubusercontent.com/Mariosmsk/38fa37997f2b
             minZoom: -0.6,
             maxZoom: 0.6,
             zoomControl: false,
-            attributionControl: false,
-            dragging: window.innerWidth > 768, // Disable dragging on mobile
-            tap: false
+			attributionControl: false,
+			dragging: false,
+			boxZoom: false,
+			doubleClickZoom: false,
+			scrollWheelZoom: false,
+			touchZoom: false,
+			keyboard: false,
+			tap: false
         });
 		map._container.style.cursor = 'default'
 
