@@ -1,16 +1,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no" />
-<div id="map" style="width: 100vw; height: 100vh; background-color: white;"></div>
+
+<div id="map" style="width: 100vw; background-color: white;"></div>
+
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow: hidden; /* hides scrollbars */
-}
-#map {
-  width: 100vw;
-  height: 100vh;
-}
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* hides scrollbars */
+    background: #fff;
+    touch-action: none; /* αποτρέπει pinch/pan του browser */
+  }
+  #map {
+    width: 100vw;
+    /* ΜΗ βάζεις εδώ fixed height τύπου 100vh — το ορίζουμε δυναμικά με JS */
+  }
+
+  /* Popups */
+  .custom-popup {
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+    padding: 5px;
+    font-weight: bold;
+    font-size: 10px;
+    text-align: center;
+  }
+  .leaflet-popup-content {
+    margin: 6px !important;
+    padding: 8px !important;
+  }
 </style>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -18,106 +37,99 @@ html, body {
 
 <script>
 const station_names = 'https://gist.githubusercontent.com/Mariosmsk/38fa37997f2b7bcb11cbcb29e4548a45/raw/json';
-	const isMobileOrTablet = /Mobi|Android|iPad|iPhone/i.test(navigator.userAgent);
-	const zoomLimit = isMobileOrTablet ? 0.9 : 0.6;
 
-    document.addEventListener("DOMContentLoaded", function () {
-        var map = L.map('map', {
-            crs: L.CRS.Simple,
-            minZoom: -zoomLimit,
-            maxZoom: zoomLimit,
-            zoomControl: false,
-			attributionControl: false,
-			dragging: false,
-			boxZoom: false,
-			doubleClickZoom: false,
-			scrollWheelZoom: false,
-			touchZoom: false,
-			keyboard: false,
-			tap: false
-        });
-		map._container.style.cursor = 'default'
-
-		var imgBounds = [[0, 0], [1000, 1500]];  // [Height, Width]
-        var imageUrl = 'https://www.dropbox.com/scl/fi/uo3dac9ojbfui6886tgl6/livetemperatures.png?rlkey=w43k4nuwfxxd4i9x4bo3pcpwd&raw=1';
-        L.imageOverlay(imageUrl, imgBounds).addTo(map);
-        map.fitBounds(imgBounds);
-
-	var temperatureData = [];
-
-	fetch(station_names)
-		.then(response => {
-			if (!response.ok) {
-				throw new Error(`HTTP error! Status: ${response.status}`);
-			}
-			return response.json();
-		})
-		.then(data => {
-			temperatureData = data.stations.map(station => ({
-				lat: station.lat,
-				lng: station.lng,
-				content: station.name
-			}));
-
-			// Check if the map variable exists
-			if (typeof map !== "undefined") {
-				
-				temperatureData.forEach(data => {
-				var popup = L.popup({ closeButton: true })
-					.setLatLng([data.lat, data.lng])
-					.setContent('<div class="custom-popup">' + data.content + '</div>');
-
-				var clickableArea = L.circle([data.lat, data.lng], {
-					radius: 10,
-					opacity: 0,
-					fillOpacity: 0
-				}).addTo(map);
-				
-				clickableArea.on('mouseover', function () {
-					map._container.style.cursor = 'pointer';
-				});
-
-				clickableArea.on('mouseout', function () {
-					map._container.style.cursor = 'default';
-				});
-
-				clickableArea.on('click', function () {
-					popup.openOn(map);
-				});
-			});
-
-			window.addEventListener('resize', function () {
-				map.invalidateSize();
-			});
-			
-			} else {
-				console.error('Map object is not defined.');
-			}
-			
-		})
-		.catch(error => {
-			console.error('Error fetching the JSON data:', error);
-		});
-
-// Add this CSS to style the popup
-var style = document.createElement('style');
-style.innerHTML = `
-.custom-popup {
-    border-radius: 10px;
-    border: 1px solid #ccc;
-    background: #fff;
-    padding: 5px; /* Adjusted padding */
-    font-weight: bold; /* Makes the text bold */
-    font-size: 10px; /* Ensures text is readable but not too large */
-    text-align: center; /* Centers the text */
-}
-.leaflet-popup-content {
-    margin: 6px !important; /* Remove any default margin */
-    padding: 8px !important; /* Reduce padding inside the content */
+// 1) Σίγουρο ύψος σε όλους τους browsers
+function setMapHeight() {
+  document.getElementById('map').style.height = window.innerHeight + 'px';
 }
 
-`;
-document.head.appendChild(style);
+document.addEventListener("DOMContentLoaded", function () {
+  setMapHeight();
+  window.addEventListener('resize', () => {
+    setMapHeight();
+    if (window._refit) window._refit(); // θα το ορίσουμε πιο κάτω
+  });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      setMapHeight();
+      if (window._refit) window._refit();
+    }, 50);
+  });
 
+  // 2) Ανίχνευση συσκευής (πλάτος)
+  const isMobileOrTablet = window.innerWidth <= 1024;
+  const zoomLimit = isMobileOrTablet ? 0.9 : 0.6;
+
+  // 3) Map χωρίς min/max αρχικά (θα τα βάλουμε μετά το fit)
+  const map = L.map('map', {
+    crs: L.CRS.Simple,
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    boxZoom: false,
+    doubleClickZoom: false,
+    scrollWheelZoom: false,
+    touchZoom: false,
+    keyboard: false,
+    tap: false
+  });
+  map._container.style.cursor = 'default';
+
+  // Εικόνα
+  const imgBounds = [[0, 0], [1000, 1500]];  // [Height, Width]
+  const imageUrl = 'https://www.dropbox.com/scl/fi/uo3dac9ojbfui6886tgl6/livetemperatures.png?rlkey=w43k4nuwfxxd4i9x4bo3pcpwd&raw=1';
+  const overlay = L.imageOverlay(imageUrl, imgBounds).addTo(map);
+
+  // Fit ΜΟΝΟ όταν φορτώσει η εικόνα (σταθερό σε Internet app)
+  function fitAndLock() {
+    // Υπολόγισε zoom που χωράει όλη την εικόνα
+    const fitZoom = map.getBoundsZoom(L.latLngBounds(imgBounds), true);
+    const center  = L.latLng( (imgBounds[0][0] + imgBounds[1][0]) / 2,
+                              (imgBounds[0][1] + imgBounds[1][1]) / 2 );
+    map.setView(center, fitZoom, { animate: false });
+
+    // Βάλε τα όρια όπως ζήτησες (mobile/tablet: 0.9, pc: 0.6)
+    map.setMinZoom(-zoomLimit);
+    map.setMaxZoom( zoomLimit);
+    map.setMaxBounds(imgBounds); // μην βγει έξω από την εικόνα
+    map.options.maxBoundsViscosity = 1.0;
+
+    // Διπλή ασφάλεια ενάντια σε auto-zoom
+    map.invalidateSize(false);
+  }
+
+  overlay.once('load', fitAndLock);
+  map.whenReady(() => {
+    // Αν η εικόνα ήταν cached και δεν πιάσαμε το load
+    setTimeout(fitAndLock, 0);
+  });
+
+  // Refit σε αλλαγή μεγέθους/προσανατολισμού
+  window._refit = () => {
+    map.invalidateSize(false);
+    fitAndLock();
+  };
+
+  // Popups / hotspots
+  fetch(station_names)
+    .then(r => { if (!r.ok) throw new Error(`HTTP error! Status: ${r.status}`); return r.json(); })
+    .then(data => {
+      (data.stations || []).forEach(st => {
+        const popup = L.popup({ closeButton: true })
+          .setLatLng([st.lat, st.lng])
+          .setContent('<div class="custom-popup">' + st.name + '</div>');
+
+        const clickableArea = L.circle([st.lat, st.lng], {
+          radius: 10,
+          opacity: 0,
+          fillOpacity: 0
+        }).addTo(map);
+
+        clickableArea.on('mouseover', () => map._container.style.cursor = 'pointer');
+        clickableArea.on('mouseout',  () => map._container.style.cursor = 'default');
+        clickableArea.on('click',    () => popup.openOn(map));
+      });
+    })
+    .catch(err => console.error('Error fetching the JSON data:', err));
 });
 </script>
