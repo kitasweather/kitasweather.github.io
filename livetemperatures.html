@@ -18,12 +18,14 @@ html, body {
 
 <script>
 const station_names = 'https://gist.githubusercontent.com/Mariosmsk/38fa37997f2b7bcb11cbcb29e4548a45/raw/json';
+	const isMobileOrTablet = window.innerWidth <= 1024; 
+	const zoomLimit = isMobileOrTablet ? 0.9 : 0.6;
 
     document.addEventListener("DOMContentLoaded", function () {
         var map = L.map('map', {
             crs: L.CRS.Simple,
-            minZoom: -0.8,
-            maxZoom: 0.8,
+            minZoom: -zoomLimit,
+            maxZoom: zoomLimit,
             zoomControl: false,
 			attributionControl: false,
 			dragging: false,
