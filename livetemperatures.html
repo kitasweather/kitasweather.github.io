@@ -1,16 +1,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<!-- Map container (single!) -->
+<!-- Map container -->
 <div id="map"></div>
 
 <style>
-  html, body, #map {
-    margin: 0;
-    padding: 0;
-    height: 100vh;   /* full viewport height */
-    width: 100vw;    /* full viewport width */
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;           /* κόβει τυχόν κύλιση */
+  overscroll-behavior: none;  /* αποφεύγει bounce */
+}
+
 
   #map {
     position: fixed; /* pin to top-left, fill screen */
@@ -26,17 +29,12 @@
 const station_names = 'https://gist.githubusercontent.com/Mariosmsk/38fa37997f2b7bcb11cbcb29e4548a45/raw/json';
 const isMobileOrTablet = window.innerWidth <= 1024;
 
-// allow fine zoom steps and give mobile a higher max zoom
-const mobileExtraZoom = 1.5;   // how much we zoom in after fitBounds on mobile
-const maxZoomCommon = 3.5;     // raise this if you want even bigger
-const minZoomCommon = -3.5;
-
 document.addEventListener("DOMContentLoaded", function () {
   const map = L.map('map', {
     crs: L.CRS.Simple,
     zoomControl: false,
     attributionControl: false,
-    dragging: false,
+    dragging: false,            // default no dragging
     boxZoom: false,
     doubleClickZoom: false,
     scrollWheelZoom: false,
@@ -45,38 +43,41 @@ document.addEventListener("DOMContentLoaded", function () {
     tap: false,
     zoomSnap: 0.1,
     zoomDelta: 0.1,
-    minZoom: minZoomCommon,
-    maxZoom: maxZoomCommon
+    minZoom: -3.5,
+    maxZoom: 3.0
   });
 
   map._container.style.cursor = 'default';
 
-  // Image bounds: [[yMin, xMin], [yMax, xMax]] for CRS.Simple
+  // Image bounds: [ [yMin, xMin], [yMax, xMax] ]
   const imgBounds = [[0, 0], [1000, 1500]];
   const imageUrl = 'https://www.dropbox.com/scl/fi/uo3dac9ojbfui6886tgl6/livetemperatures.png?rlkey=w43k4nuwfxxd4i9x4bo3pcpwd&raw=1';
 
   L.imageOverlay(imageUrl, imgBounds).addTo(map);
 
-  // Fit, then zoom in a bit on mobile to make it bigger
-  map.fitBounds(imgBounds, { padding: [0, 0] });
+  // Fit image into view with padding
+  map.fitBounds(imgBounds, { padding: [18, 18] });
 
+  // Zoom tweak for mobile
   if (isMobileOrTablet) {
-    const z = map.getZoom();
-    map.setZoom(z + mobileExtraZoom); // nudge in
+    const fitZ = map.getZoom();     
+    map.setZoom(fitZ + 0.3);   // μικρό boost, άλλαξέ το (0, 0.2, 0.3) αν χρειάζεται
+    map.dragging.enable();     // δίνουμε δυνατότητα dragging στο κινητό
+    map.touchZoom.disable();   // αλλά όχι pinch-zoom
+    map.scrollWheelZoom.disable();
   }
 
-  // Optional: keep the image centered and prevent panning outside
+  // Lock map inside image bounds
   map.setMaxBounds(imgBounds);
 
   // --- Station popups ---
-  let temperatureData = [];
   fetch(station_names)
     .then(r => {
       if (!r.ok) throw new Error(`HTTP error! Status: ${r.status}`);
       return r.json();
     })
     .then(data => {
-      temperatureData = data.stations.map(s => ({
+      const temperatureData = data.stations.map(s => ({
         lat: s.lat,
         lng: s.lng,
         content: s.name
@@ -119,7 +120,7 @@ document.addEventListener("DOMContentLoaded", function () {
       background: #fff;
       padding: 5px;
       font-weight: bold;
-      font-size: 12px; /* bump a bit for mobile */
+      font-size: 12px;
       text-align: center;
     }
     .leaflet-popup-content {
