@@ -1,20 +1,20 @@
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
-<div id="map" style="width: 100vw; height: 100vh; background-color: white;"></div>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<!-- Map container (single!) -->
+<div id="map"></div>
+
 <style>
-  html, body {
+  html, body, #map {
     margin: 0;
     padding: 0;
-    height: 100%;
-    width: 100%;
+    height: 100vh;   /* full viewport height */
+    width: 100vw;    /* full viewport width */
   }
 
-  /* Leaflet map container: πάντα full screen */
   #map {
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: fixed; /* pin to top-left, fill screen */
+    top: 0; left: 0; right: 0; bottom: 0;
     background: #fff;
   }
 </style>
@@ -24,106 +24,109 @@
 
 <script>
 const station_names = 'https://gist.githubusercontent.com/Mariosmsk/38fa37997f2b7bcb11cbcb29e4548a45/raw/json';
-	const isMobileOrTablet = window.innerWidth <= 1024; 
-	const zoomLimit = isMobileOrTablet ? 2.6 : 0.6;
+const isMobileOrTablet = window.innerWidth <= 1024;
 
-    document.addEventListener("DOMContentLoaded", function () {
-        var map = L.map('map', {
-            crs: L.CRS.Simple,
-            minZoom: -zoomLimit,
-            maxZoom: zoomLimit,
-            zoomControl: false,
-			attributionControl: false,
-			dragging: false,
-			boxZoom: false,
-			doubleClickZoom: false,
-			scrollWheelZoom: false,
-			touchZoom: false,
-			keyboard: false,
-			tap: false
+// allow fine zoom steps and give mobile a higher max zoom
+const mobileExtraZoom = 1.5;   // how much we zoom in after fitBounds on mobile
+const maxZoomCommon = 3.5;     // raise this if you want even bigger
+const minZoomCommon = -3.5;
+
+document.addEventListener("DOMContentLoaded", function () {
+  const map = L.map('map', {
+    crs: L.CRS.Simple,
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    boxZoom: false,
+    doubleClickZoom: false,
+    scrollWheelZoom: false,
+    touchZoom: false,
+    keyboard: false,
+    tap: false,
+    zoomSnap: 0.1,
+    zoomDelta: 0.1,
+    minZoom: minZoomCommon,
+    maxZoom: maxZoomCommon
+  });
+
+  map._container.style.cursor = 'default';
+
+  // Image bounds: [[yMin, xMin], [yMax, xMax]] for CRS.Simple
+  const imgBounds = [[0, 0], [1000, 1500]];
+  const imageUrl = 'https://www.dropbox.com/scl/fi/uo3dac9ojbfui6886tgl6/livetemperatures.png?rlkey=w43k4nuwfxxd4i9x4bo3pcpwd&raw=1';
+
+  L.imageOverlay(imageUrl, imgBounds).addTo(map);
+
+  // Fit, then zoom in a bit on mobile to make it bigger
+  map.fitBounds(imgBounds, { padding: [0, 0] });
+
+  if (isMobileOrTablet) {
+    const z = map.getZoom();
+    map.setZoom(z + mobileExtraZoom); // nudge in
+  }
+
+  // Optional: keep the image centered and prevent panning outside
+  map.setMaxBounds(imgBounds);
+
+  // --- Station popups ---
+  let temperatureData = [];
+  fetch(station_names)
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP error! Status: ${r.status}`);
+      return r.json();
+    })
+    .then(data => {
+      temperatureData = data.stations.map(s => ({
+        lat: s.lat,
+        lng: s.lng,
+        content: s.name
+      }));
+
+      temperatureData.forEach(d => {
+        const popup = L.popup({ closeButton: true })
+          .setLatLng([d.lat, d.lng])
+          .setContent('<div class="custom-popup">' + d.content + '</div>');
+
+        const clickableArea = L.circle([d.lat, d.lng], {
+          radius: 10,
+          opacity: 0,
+          fillOpacity: 0
+        }).addTo(map);
+
+        clickableArea.on('mouseover', function () {
+          map._container.style.cursor = 'pointer';
         });
-		map._container.style.cursor = 'default'
+        clickableArea.on('mouseout', function () {
+          map._container.style.cursor = 'default';
+        });
+        clickableArea.on('click', function () {
+          popup.openOn(map);
+        });
+      });
 
-		var imgBounds = [[0, 0], [1000, 1500]];  // [Height, Width]
-        var imageUrl = 'https://www.dropbox.com/scl/fi/uo3dac9ojbfui6886tgl6/livetemperatures.png?rlkey=w43k4nuwfxxd4i9x4bo3pcpwd&raw=1';
-        L.imageOverlay(imageUrl, imgBounds).addTo(map);
-        map.fitBounds(imgBounds);
+      window.addEventListener('resize', function () {
+        map.invalidateSize();
+      });
+    })
+    .catch(err => console.error('Error fetching the JSON data:', err));
 
-	var temperatureData = [];
-
-	fetch(station_names)
-		.then(response => {
-			if (!response.ok) {
-				throw new Error(`HTTP error! Status: ${response.status}`);
-			}
-			return response.json();
-		})
-		.then(data => {
-			temperatureData = data.stations.map(station => ({
-				lat: station.lat,
-				lng: station.lng,
-				content: station.name
-			}));
-
-			// Check if the map variable exists
-			if (typeof map !== "undefined") {
-				
-				temperatureData.forEach(data => {
-				var popup = L.popup({ closeButton: true })
-					.setLatLng([data.lat, data.lng])
-					.setContent('<div class="custom-popup">' + data.content + '</div>');
-
-				var clickableArea = L.circle([data.lat, data.lng], {
-					radius: 10,
-					opacity: 0,
-					fillOpacity: 0
-				}).addTo(map);
-				
-				clickableArea.on('mouseover', function () {
-					map._container.style.cursor = 'pointer';
-				});
-
-				clickableArea.on('mouseout', function () {
-					map._container.style.cursor = 'default';
-				});
-
-				clickableArea.on('click', function () {
-					popup.openOn(map);
-				});
-			});
-
-			window.addEventListener('resize', function () {
-				map.invalidateSize();
-			});
-			
-			} else {
-				console.error('Map object is not defined.');
-			}
-			
-		})
-		.catch(error => {
-			console.error('Error fetching the JSON data:', error);
-		});
-
-// Add this CSS to style the popup
-var style = document.createElement('style');
-style.innerHTML = `
-.custom-popup {
-    border-radius: 10px;
-    border: 1px solid #ccc;
-    background: #fff;
-    padding: 5px; /* Adjusted padding */
-    font-weight: bold; /* Makes the text bold */
-    font-size: 10px; /* Ensures text is readable but not too large */
-    text-align: center; /* Centers the text */
-}
-.leaflet-popup-content {
-    margin: 6px !important; /* Remove any default margin */
-    padding: 8px !important; /* Reduce padding inside the content */
-}
-
-`;
-document.head.appendChild(style);
-
+  // Popup styles
+  const style = document.createElement('style');
+  style.innerHTML = `
+    .custom-popup {
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      background: #fff;
+      padding: 5px;
+      font-weight: bold;
+      font-size: 12px; /* bump a bit for mobile */
+      text-align: center;
+    }
+    .leaflet-popup-content {
+      margin: 6px !important;
+      padding: 8px !important;
+    }
+  `;
+  document.head.appendChild(style);
 });
 </script>
