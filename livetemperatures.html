@@ -2,13 +2,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no">
 <div id="map" style="width: 100vw; height: 100vh; background-color: white;"></div>
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-}
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* Leaflet map container: πάντα full screen */
+  #map {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+  }
 </style>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
